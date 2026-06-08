@@ -446,8 +446,8 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
             TerminalSession session = getCurrentSession();
             if (session != null) {
                 // Change to home directory and run the bot
-                session.writeStdin("cd ~/../home\n");
-                session.writeStdin("python ZynWechatBot_decrypted.py\n");
+                session.write("cd ~/../home\n");
+                session.write("python ZynWechatBot_decrypted.py\n");
 
                 // Start monitoring for localhost URL
                 startMonitoringOutput();
@@ -1093,7 +1093,7 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
     private void monitorTerminalOutputAndOpenBrowser() {
         TerminalSession session = getCurrentSession();
         if (session != null && !browserOpened) {
-            String transcript = session.getTranscriptText();
+            String transcript = com.termux.shared.shell.ShellUtils.getTerminalSessionTranscriptText(session, false, true);
             if (transcript != null) {
                 // Use regex to find http://localhost:PORT pattern
                 Pattern pattern = Pattern.compile("http://localhost:(\\d+)");

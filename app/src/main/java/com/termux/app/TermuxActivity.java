@@ -441,17 +441,29 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         // Copy bot scripts if needed and run the bot
         copyBotScriptsIfNeeded();
 
-        // Run the bot script after a short delay to ensure terminal is ready
+        // Check if dependencies are already installed
+        android.content.SharedPreferences prefs = getSharedPreferences("bot_prefs", MODE_PRIVATE);
+        boolean depsInstalled = prefs.getBoolean("deps_installed", false);
+
         new android.os.Handler().postDelayed(() -> {
             TerminalSession session = getCurrentSession();
-            if (session != null) {
-                // Change to home directory and run the bot
-                session.write("cd ~/../home\n");
-                session.write("python ZynWechatBot_decrypted.py\n");
+            if (session == null) return;
 
-                // Start monitoring for localhost URL
-                startMonitoringOutput();
+            if (!depsInstalled) {
+                // Install dependencies first
+                session.write("pkg install python -y\n");
+                new android.os.Handler().postDelayed(() -> {
+                    session.write("pip install pycryptodome pilk\n");
+                    new android.os.Handler().postDelayed(() -> {
+                        session.write("echo DEPS_DONE\n");
+                        // Monitor for DEPS_DONE
+                        startDepsMonitor(session, prefs);
+                    }, 5000);
+                }, 30000); // wait 30s for pkg install
+            } else {
+                runBotScript(session);
             }
+            startMonitoringOutput();
         }, 2000);
     }
 
@@ -1073,6 +1085,28 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
                 Logger.logError(LOG_TAG, "Failed to copy bot scripts: " + e.getMessage());
             }
         }
+    }
+
+    private void startDepsMonitor(TerminalSession session, android.content.SharedPreferences prefs) {
+        android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        Runnable check = new Runnable() {
+            @Override
+            public void run() {
+                String transcript = com.termux.shared.shell.ShellUtils.getTerminalSessionTranscriptText(session, false, true);
+                if (transcript != null && transcript.contains("DEPS_DONE")) {
+                    prefs.edit().putBoolean("deps_installed", true).apply();
+                    runBotScript(session);
+                } else {
+                    handler.postDelayed(this, 2000);
+                }
+            }
+        };
+        handler.postDelayed(check, 2000);
+    }
+
+    private void runBotScript(TerminalSession session) {
+        session.write("cd ~/../home\n");
+        session.write("python ZynWechatBot_decrypted.py\n");
     }
 
     private boolean browserOpened = false;
